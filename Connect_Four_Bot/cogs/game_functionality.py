@@ -23,6 +23,36 @@ class Game_Functionality(commands.Cog):
         """
         print("Success! Bot is connected to Discord.")
 
+    def create_board(self):
+        """
+        Initializes the empty board at the start of the game
+        Parameters: self
+        Returns: 2D list representing empty board
+        """
+        num_rows = 6
+        num_cols = 7
+        board = []
+        for i in range(num_rows):
+            a_row = []
+            for j in range(num_cols):
+                a_row.append("⚪")
+            board.append(a_row)
+        return(board)
+    
+    def display_board(self, board):
+        """
+        Creates a string representation of the board
+        Parameters: self, board of type 2D list
+        Returns: String representing board
+        """
+        adjust_factor = 5
+        display = ""
+        for row in board:
+            for element in row:
+                display += element.rjust(adjust_factor)
+            display += "\n"  # Create a new line
+        return display
+    
     @commands.command()
     async def sendembed(self, ctx):
         """
@@ -30,9 +60,9 @@ class Game_Functionality(commands.Cog):
         Parameters: self, Context of the command
         Returns: None
         """
-        embeded_msg = discord.Embed(title = "Title Example", description = "Description Example", color = discord.Color.blue())
-        embeded_msg.set_thumbnail(url = "https://m.media-amazon.com/images/I/81u7fuXcXQL.jpg")  # I found this on google images and pasted the link
-        embeded_msg.add_field(name="Field Name", value="Field Value", inline=False)  # True will display fields on same line
+        board = self.create_board()
+        embeded_msg = discord.Embed(title = "Title Example", description = "Description Example", color = discord.Color.red())
+        embeded_msg.add_field(name="Field Name", value=self.display_board(board), inline=False)  # True will display fields on same line
         await ctx.send(embed = embeded_msg)
 
 async def setup(client):
