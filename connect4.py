@@ -42,12 +42,15 @@ def get_column():
 def place_piece(board,color,column):
     # column = int(input(f'Enter column to place a {color} piece: '))
     row_placed = check_below(column, board)
-    board[row_placed][column] = color.lower()[0]
+    if row_placed != -5:
+        board[row_placed][column] = color.lower()[0]
     
 def check_below(column, board):
     rows = len(board)
     for i in range(rows):
-        if board[i][column] != '*':
+        if i == 0 and board[i][column] != '*':
+            return -5        
+        elif board[i][column] != '*':
             return i-1
     return rows-1
 
