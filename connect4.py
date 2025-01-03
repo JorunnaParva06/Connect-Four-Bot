@@ -36,21 +36,20 @@ def display_board(board):
     print(border)
 
 def get_column():
-    column = int(input('Enter column: '))
-    return column
+    column = input('Enter column or \'exit\' to forfeit: ')
+    if column == 'exit':
+        return None
+    while column not in ['0','1','2','3','4','5','6']:
+        column = input('Invalid input. Enter column or \'exit\' to forfeit: ')
+    return int(column)
 
-def place_piece(board,color,column):
-    # column = int(input(f'Enter column to place a {color} piece: '))
-    row_placed = check_below(column, board)
-    if row_placed != -5:
-        board[row_placed][column] = color.lower()[0]
+def place_piece(board,color,row,column):
+    board[row][column] = color.lower()[0]
     
 def check_below(column, board):
     rows = len(board)
     for i in range(rows):
-        if i == 0 and board[i][column] != '*':
-            return -5        
-        elif board[i][column] != '*':
+        if board[i][column] != '*':
             return i-1
     return rows-1
 
@@ -117,56 +116,77 @@ def check_win(board,color,row_index,col_index,direction):
             if count == 4:
                 break
             if col_index-i in range(cols):
-                if board[row_index][col_index-i] == char:
+                if board[row_index][col_index-i] == char and board[row_index][col_index-i+1] == char:
                     count+=1
             if col_index+i in range(cols):
-                if board[row_index][col_index+i] == char:
+                if board[row_index][col_index+i] == char and board[row_index][col_index+i-1] == char:
                     count+=1
     elif direction == 'verticle':
         for i in range(1,4):
             if count == 4:
                 break
             if row_index-i in range(rows):
-                if board[row_index-i][col_index] == char:
+                if board[row_index-i][col_index] == char and board[row_index-i+1][col_index] == char:
                     count+=1
             if row_index+i in range(rows):
-                if board[row_index+i][col_index] == char:
+                if board[row_index+i][col_index] == char and board[row_index+i-1][col_index] == char:
                     count+=1
     elif direction == 'backslash-diag':
         for i in range(1,4):
             if count == 4:
                 break
             if row_index-i in range(rows) and col_index-i in range(cols):
-                if board[row_index-i][col_index-i] == char:
+                if board[row_index-i][col_index-i] == char and board[row_index-i+1][col_index-i+1] == char:
                     count+=1
             if row_index+i in range(rows) and col_index+i in range(cols):
-                if board[row_index+i][col_index+i] == char:
+                if board[row_index+i][col_index+i] == char and board[row_index+i-1][col_index+i-1] == char:
                     count+=1
     elif direction == 'slash-diag':
         for i in range(1,4):
             if count == 4:
                 break
             if row_index+i in range(rows) and col_index-i in range(cols):
-                if board[row_index+i][col_index-i] == char:
+                if board[row_index+i][col_index-i] == char and board[row_index+i-1][col_index-i+1] == char:
                     count+=1
             if row_index-i in range(rows) and col_index+i in range(cols):
-                if board[row_index-i][col_index+i] == char:
+                if board[row_index-i][col_index+i] == char and board[row_index-i+1][col_index+i-1] == char:
                     count+=1
     return count == 4
+
+def check_tie(board):
+    full_count = 0
+    for i in range(len(board)):
+        for j in range(len(board[0])):
+            if board[i][j] != '*':
+                full_count+=1
+    return full_count == 42
 
 def main():
     print('WELCOME TO CONNECT 4')
     board = create_board()
     display_board(board)
+    tie = False
     win = False
-    while not win:
+    forfeit = False
+    while not win or not tie or forfeit:
         print('Red Turn')
+
         column = get_column()
+        if column == None:
+            forfeit = True
+            break
+
         row = check_below(column,board)
-        place_piece(board,'red',column)
+        while row == -1:
+            print('Column full.')
+            column = get_column()
+            row = check_below(column,board)
+
+        place_piece(board,'red',row,column)
         display_board(board)
         coords = find_adjacent(board,'r',row,column)
         directions = find_directions(coords,row,column)
+        print(directions)
         for direction in directions.keys():
             win = check_win(board, 'Red', row, column, direction)
             if win:
@@ -175,21 +195,42 @@ def main():
         if win:
             break
 
+        tie = check_tie(board)
+        if tie:
+            break
+
         print('Yellow Turn')
         column = get_column()
+        if column == None:
+            forfeit = True
+            break
         row = check_below(column,board)
-        place_piece(board,'yellow',column)
+        while row == -1:
+            print('Column full.')
+            column = get_column()
+            row = check_below(column,board)
+        place_piece(board,'yellow',row,column)
         display_board(board)
         coords = find_adjacent(board,'y',row,column)
         directions = find_directions(coords,row,column)
+        print(directions)
         for direction in directions.keys():
             win = check_win(board, 'Yellow', row, column, direction)
             if win:
                 winner = 'Yellow'
                 break
-    print('#'*9)
-    print(f'{winner} Wins!')
-    print('#'*9)
+
+        tie = check_tie(board)
+        if tie:
+            break
+    if forfeit:
+        print('Game forfeited.')
+    elif not tie:
+        print('#'*9)
+        print(f'{winner} Wins!')
+        print('#'*9)
+    elif tie:
+        print('It\'s a tie!')
 
 
 if __name__ == '__main__':
