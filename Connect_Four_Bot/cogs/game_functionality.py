@@ -1,6 +1,11 @@
 import discord
 from discord.ext import commands
 
+empty_space = "⚪"
+red_space = "🔴"
+yellow_space = "🟡"
+moves = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣"]
+
 class Game_Functionality(commands.Cog):
     """
     Class contains commands and listeners related to game functionality
@@ -17,25 +22,26 @@ class Game_Functionality(commands.Cog):
     @commands.Cog.listener()
     async def on_ready(self):
         """
-        Prints a message when the bot is run
+        Prints a message when the file is running properly
         Parameters: self
         Returns: None
         """
-        print("Success! Bot is connected to Discord.")
+        print("Success! game_functionality.py is active.")
     
     def create_board(self):
         """
-        Initializes the empty board at the start of the game
+        Initializes a 6 x 7 empty board at the start of the game
         Parameters: self
         Returns: 2D list representing empty board
         """
+        # "*" signifies an empty space
         num_rows = 6
         num_cols = 7
         board = []
         for i in range(num_rows):
             a_row = []
             for j in range(num_cols):
-                a_row.append("⚪")
+                a_row.append("*")
             board.append(a_row)
         return(board)
     
@@ -49,9 +55,27 @@ class Game_Functionality(commands.Cog):
         display = ""
         for row in board:
             for element in row:
+                if element == "*":
+                    element = empty_space
+                elif element == "r":
+                    element = red_space
+                else:
+                    element = yellow_space
                 display += element.rjust(adjust_factor)
             display += "\n"  # Create a new line
         return display
+    
+    # Reaction listener
+    @ commands.Cog.listener()
+    async def on_reaction_add(self, reaction, user):
+        """
+        Returns a column number based on the reaction given by user
+        Parameters: self, reaction object, user who reacted
+        Returns: Int representing column number
+        """
+        if reaction.emoji in moves:
+            column = moves.index(reaction.emoji) + 1
+            # self.user_columns[user.id] = column  # Create a dictionary to store selected columns    
 
     def determine_player(self, red_turn):
         """
@@ -65,23 +89,25 @@ class Game_Functionality(commands.Cog):
             player = "Yellow"
         return player
 
-    @commands.command()
-    async def play(self, ctx):
+    @ commands.Cog.listener()
+    async def on_players_assigned(self, players, channel):
         """
-        Creates an embed with an image and example text
+        Begins game functionality when a red and yellow player is assigned
         Parameters: self, Context of the command
         Returns: None
         """
         board = self.create_board()  
         game_over = False
-        a = 0  # Testing variable to check turn switching
+        testing_var = 0  # Testing variable to check turn switching
 
         # Create initial embed
         red_turn = True  # Red will always go first
         player = self.determine_player(red_turn)
         embeded_msg = discord.Embed(title = "Title Example", description = f"{player}'s Turn", color = discord.Color.red())
         embeded_msg.add_field(name = "", value = self.display_board(board), inline = False)
-        message = await ctx.send(embed = embeded_msg)
+        message = await channel.send(embed = embeded_msg)
+        for move in moves:
+            await message.add_reaction(move)
 
         # Red's first move goes here
 
@@ -94,10 +120,10 @@ class Game_Functionality(commands.Cog):
             embeded_msg.add_field(name = "", value = self.display_board(board), inline = False)
             await message.edit(embed = embeded_msg)
 
-            a += 1
-            if a > 10:
+            testing_var += 1
+            if testing_var > 10:
                 print("Done testing")
                 game_over = True
-
+        
 async def setup(client):
     await client.add_cog(Game_Functionality(client))
