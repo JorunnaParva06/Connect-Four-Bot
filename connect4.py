@@ -219,7 +219,8 @@ def main():
             if win:
                 winner = 'Yellow'
                 break
-
+        if win:
+            break
         tie = check_tie(board)
         if tie:
             break
