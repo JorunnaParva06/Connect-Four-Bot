@@ -1,0 +1,54 @@
+import discord
+from discord.ext import commands
+
+class Invite_Game(commands.Cog):
+    """
+    Class contains commands and listeners related to sending game invites
+    Attributes: client of type commands.Bot, dictionary which will contain player info
+    """
+    def __init__(self, client):
+        """
+        Initializes the cog with bot client
+        Parameters: client of type commands.Bot
+        Returns: None
+        """
+        self.client = client
+        self.players = {}
+    
+    @commands.Cog.listener()
+    async def on_ready(self):
+        """
+        Prints a message when the file is running properly
+        Parameters: self
+        Returns: None
+        """
+        print("Success! invite_game.py is active.")
+    
+    # Reaction listener
+    @ commands.Cog.listener()
+    async def on_reaction_add(self, reaction, user):
+        """
+        Assigns the yellow player based on whoever reacts with a checkmark first
+        Parameters: self, reaction, user who reacted
+        Returns: None
+        """
+        if "yellow" not in self.players:  # Only execute if no yellow player is assigned
+            if reaction.emoji == "✅":  # If a different user reacts with checkmark emoji
+                if not user.bot and self.players["red"][1] != user.id:
+                    self.players["yellow"] = [user.display_name, user.id]
+                    self.client.dispatch("players_assigned", self.players, reaction.message.channel)  # Custom dispatch event called when both players assigned
+
+    @commands.command()
+    async def play(self, ctx):
+        """
+        Sends an invite to initiate the game
+        Parameters: self, ctx
+        Returns: None
+        """
+        self.players["red"] = [ctx.author.display_name, ctx.author.id]
+        embeded_msg = discord.Embed(title = f"{ctx.author.display_name} wants to play Connect Four!", description = "React using the green checkmark to play against them.", color = discord.Color.orange())
+        message = await ctx.send(embed = embeded_msg)
+        await message.add_reaction("✅")
+
+async def setup(client):
+    await client.add_cog(Invite_Game(client))
