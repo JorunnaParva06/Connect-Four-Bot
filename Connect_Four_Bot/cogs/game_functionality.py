@@ -65,65 +65,80 @@ class Game_Functionality(commands.Cog):
             display += "\n"  # Create a new line
         return display
     
+    def update_board(self, board, column):
+        """
+        Updates the board based on player moves
+        Parameters: self, board of type 2D list, column index of type int
+        Returns: None
+        """
+        row_placed = self.check_below(self.board, column)
+        if self.red_turn:
+            board[row_placed][column] = "r"
+        else:
+            board[row_placed][column] = "y"
+    
+    def check_below(self, board, column):
+        """
+        Gets the lowest row a piece can be (i.e the highest index for an empty space character)
+        Parameters: self, board of type 2D list, column index of type int
+        Returns: highest possible row index of type int
+        """
+        rows = len(board)
+        for i in range(rows):
+            if board[i][column] != '*':
+                return i - 1
+        return rows - 1
+    
     # Reaction listener
     @ commands.Cog.listener()
     async def on_reaction_add(self, reaction, user):
         """
-        Returns a column number based on the reaction given by user
+        Changes board colors based on player input and switches turns
         Parameters: self, reaction object, user who reacted
         Returns: Int representing column number
         """
-        if reaction.emoji in moves:
-            column = moves.index(reaction.emoji) + 1
-            # self.user_columns[user.id] = column  # Create a dictionary to store selected columns    
+        # Red's move
+        if self.red_turn and reaction.emoji in moves and user.id == self.players["red"][1]:  # Check if valid player reacted with valid emoji
+            column = moves.index(reaction.emoji)
+            self.update_board(self.board, column)
+            
+            # Update the embed
+            embeded_msg = discord.Embed(title = "Title Example", description = "Yellow's Turn", color = discord.Color.yellow())
+            embeded_msg.add_field(name= "", value = self.display_board(self.board), inline = False)
+            await self.message.edit(embed = embeded_msg)
 
-    def determine_player(self, red_turn):
-        """
-        Determines which player's turn it is
-        Parameters: self, red_turn of type bool
-        Returns: String representing which player's turn it is
-        """
-        if red_turn:
-            player = "Red"
-        else:
-            player = "Yellow"
-        return player
+            self.red_turn = not self.red_turn
+        # Yellow's move
+        elif not self.red_turn and reaction.emoji in moves and user.id == self.players["yellow"][1]:  # Check if valid player reacted with valid emoji
+            column = moves.index(reaction.emoji)
+            self.update_board(self.board, column)
+            
+            # Update the embed
+            embeded_msg = discord.Embed(title = "Title Example", description = "Red's Turn", color = discord.Color.red())
+            embeded_msg.add_field(name= "", value = self.display_board(self.board), inline = False)
+            await self.message.edit(embed = embeded_msg)
+
+            self.red_turn = not self.red_turn
 
     @ commands.Cog.listener()
     async def on_players_assigned(self, players, channel):
         """
-        Begins game functionality when a red and yellow player is assigned
+        Sets up initial game state when a red and yellow player is assigned
         Parameters: self, Context of the command
         Returns: None
         """
-        board = self.create_board()  
-        game_over = False
-        testing_var = 0  # Testing variable to check turn switching
+        self.board = self.create_board()
+        self.players = players  # store players dictionary for reaction listener
+        self.red_turn = True  # Red will always go first
 
-        # Create initial embed
-        red_turn = True  # Red will always go first
-        player = self.determine_player(red_turn)
-        embeded_msg = discord.Embed(title = "Title Example", description = f"{player}'s Turn", color = discord.Color.red())
-        embeded_msg.add_field(name = "", value = self.display_board(board), inline = False)
-        message = await channel.send(embed = embeded_msg)
+        # Create initial embed, red will always go first
+        embeded_msg = discord.Embed(title = "Title Example", description = "Red's Turn", color = discord.Color.red())
+        embeded_msg.add_field(name = "", value = self.display_board(self.board), inline = False)
+        self.message = await channel.send(embed = embeded_msg)
         for move in moves:
-            await message.add_reaction(move)
-
-        # Red's first move goes here
-
-        while not game_over:
-
-            red_turn = not red_turn
-            player = self.determine_player(red_turn)
-            # Next player's move goes here
-            embeded_msg = discord.Embed(title = "Title Example", description = f"{player}'s Turn", color = discord.Color.red() if red_turn else discord.Color.yellow())
-            embeded_msg.add_field(name = "", value = self.display_board(board), inline = False)
-            await message.edit(embed = embeded_msg)
-
-            testing_var += 1
-            if testing_var > 10:
-                print("Done testing")
-                game_over = True
+            await self.message.add_reaction(move)
+        
+        await self.start_game(channel, self.board, players)
         
 async def setup(client):
     await client.add_cog(Game_Functionality(client))
