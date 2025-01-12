@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands
+import asyncio
 
 class Invite_Game(commands.Cog):
     """
@@ -14,6 +15,7 @@ class Invite_Game(commands.Cog):
         """
         self.client = client
         self.players = {}
+        self.deleted_invite = False
     
     @commands.Cog.listener()
     async def on_ready(self):
@@ -37,6 +39,8 @@ class Invite_Game(commands.Cog):
                 if not user.bot and self.players["red"][1] != user.id:
                     self.players["yellow"] = [user.display_name, user.id]
                     self.client.dispatch("players_assigned", self.players, reaction.message.channel)  # Custom dispatch event called when both players assigned
+                    self.deleted_invite = True
+                    await self.message.delete()
 
     @commands.command()
     async def play(self, ctx):
@@ -47,8 +51,15 @@ class Invite_Game(commands.Cog):
         """
         self.players["red"] = [ctx.author.display_name, ctx.author.id]
         embeded_msg = discord.Embed(title = f"{ctx.author.display_name} wants to play Connect Four!", description = "React using the green checkmark to play against them.", color = discord.Color.orange())
-        message = await ctx.send(embed = embeded_msg)
-        await message.add_reaction("✅")
+        self.message = await ctx.send(embed = embeded_msg)
+        await self.message.add_reaction("✅")
+
+        # Delete invite message after 60 seconds if nobody else reacts
+        await asyncio.sleep(60)
+        if not self.deleted_invite:  # Ensure invite embed is not already deleted
+            self.deleted_invite = True
+            await self.message.delete()
+            await ctx.send("Connect Four game cancelled, nobody else reacted after 60 seconds.")
 
 async def setup(client):
     await client.add_cog(Invite_Game(client))
