@@ -34,14 +34,13 @@ class Game_Functionality(commands.Cog):
         Parameters: self
         Returns: 2D list representing empty board
         """
-        # "*" signifies an empty space
         num_rows = 6
         num_cols = 7
         board = []
         for i in range(num_rows):
             a_row = []
             for j in range(num_cols):
-                a_row.append("*")
+                a_row.append("*")  # "*" signifies an empty space
             board.append(a_row)
         return(board)
     
@@ -76,7 +75,7 @@ class Game_Functionality(commands.Cog):
             board[row_placed][column] = "r"
         else:
             board[row_placed][column] = "y"
-    
+
     def check_below(self, board, column):
         """
         Gets the lowest row a piece can be (i.e the highest index for an empty space character)
@@ -89,7 +88,6 @@ class Game_Functionality(commands.Cog):
                 return i - 1
         return rows - 1
     
-    # Reaction listener
     @ commands.Cog.listener()
     async def on_reaction_add(self, reaction, user):
         """
@@ -98,24 +96,27 @@ class Game_Functionality(commands.Cog):
         Returns: Int representing column number
         """
         # Red's move
-        if self.red_turn and reaction.emoji in moves and user.id == self.players["red"][1]:  # Check if valid player reacted with valid emoji
+        red_id = self.players.get("red")[1]
+        yellow_id = self.players.get("yellow")[1]
+        if self.red_turn and reaction.emoji in moves and user.id == red_id:  # Check if valid player reacted with valid emoji
             column = moves.index(reaction.emoji)
             self.update_board(self.board, column)
-            
+
             # Update the embed
-            embeded_msg = discord.Embed(title = "Title Example", description = "Yellow's Turn", color = discord.Color.yellow())
-            embeded_msg.add_field(name= "", value = self.display_board(self.board), inline = False)
+            embeded_msg = discord.Embed(title = "Yellow's Turn", description = f"{self.red_name} is Red, {self.yellow_name} is Yellow.", color = discord.Color.yellow())
+            embeded_msg.add_field(name = "", value = self.display_board(self.board), inline = False)
             await self.message.edit(embed = embeded_msg)
 
             self.red_turn = not self.red_turn
+
         # Yellow's move
-        elif not self.red_turn and reaction.emoji in moves and user.id == self.players["yellow"][1]:  # Check if valid player reacted with valid emoji
+        elif not self.red_turn and reaction.emoji in moves and user.id == yellow_id:  # Check if valid player reacted with valid emoji
             column = moves.index(reaction.emoji)
             self.update_board(self.board, column)
             
             # Update the embed
-            embeded_msg = discord.Embed(title = "Title Example", description = "Red's Turn", color = discord.Color.red())
-            embeded_msg.add_field(name= "", value = self.display_board(self.board), inline = False)
+            embeded_msg = discord.Embed(title = "Red's Turn", description = f"{self.red_name} is Red, {self.yellow_name} is Yellow.", color = discord.Color.red())
+            embeded_msg.add_field(name = "", value = self.display_board(self.board), inline = False)
             await self.message.edit(embed = embeded_msg)
 
             self.red_turn = not self.red_turn
@@ -130,15 +131,15 @@ class Game_Functionality(commands.Cog):
         self.board = self.create_board()
         self.players = players  # store players dictionary for reaction listener
         self.red_turn = True  # Red will always go first
+        self.red_name = self.players.get("red")[0]
+        self.yellow_name = self.players.get("yellow")[0]
 
         # Create initial embed, red will always go first
-        embeded_msg = discord.Embed(title = "Title Example", description = "Red's Turn", color = discord.Color.red())
+        embeded_msg = discord.Embed(title = "Red's Turn", description = f"{self.red_name} is Red, {self.yellow_name} is Yellow.", color = discord.Color.red())
         embeded_msg.add_field(name = "", value = self.display_board(self.board), inline = False)
         self.message = await channel.send(embed = embeded_msg)
         for move in moves:
             await self.message.add_reaction(move)
-        
-        await self.start_game(channel, self.board, players)
         
 async def setup(client):
     await client.add_cog(Game_Functionality(client))
