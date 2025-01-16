@@ -98,7 +98,7 @@ def find_adjacent(board,char, row_index, col_index):
     return coords
 
 def find_directions(coords,row_index,col_index):
-    # determine the directions a win is possible in by subtracting each of the coords adjacent to the most recently placed by the most recently placed
+    # determine the directions a win is possible in by finding the relative positions of adjacent pieces (subtracting each of the coords adjacent to the most recently placed by the most recently placed)
     # x: the row portion of the (row,col) coords
     # y: the col portion of the (row,col) coords
     # row_index: row index of the most recently placed piece
