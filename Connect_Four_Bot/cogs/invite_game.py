@@ -26,7 +26,6 @@ class Invite_Game(commands.Cog):
         """
         print("Success! invite_game.py is active.")
     
-    # Reaction listener
     @ commands.Cog.listener()
     async def on_reaction_add(self, reaction, user):
         """
