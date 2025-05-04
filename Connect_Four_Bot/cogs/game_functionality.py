@@ -101,6 +101,7 @@ class Game_Functionality(commands.Cog):
             next_player = "Red"
             color = discord.Color.red()
         embeded_msg = discord.Embed(title = f"{next_player}'s Turn", description = f"{self.red_name} is Red, {self.yellow_name} is Yellow.", color = color)
+        embeded_msg.add_field(name = "", value = "You have 60 seconds to make your move.", inline = False)
         embeded_msg.add_field(name = "", value = self.display_board(self.board), inline = False)
         await self.message.edit(embed = embeded_msg)
 
@@ -115,7 +116,8 @@ class Game_Functionality(commands.Cog):
         except asyncio.TimeoutError:
             embeded_msg = discord.Embed(title = f"Connect Four Game Cancelled", description = f"{player} has timed out.", color = color)
             await self.message.edit(embed = embeded_msg)
-            await self.kill_bot()
+            self.game_over = True
+            self.client.dispatch("time_out", player, color)  # Custom dispatch event called when a player times out
 
     def check_tie(self, board):
         """
@@ -305,8 +307,6 @@ class Game_Functionality(commands.Cog):
             self.red_turn = not self.red_turn  # Switch turns
 
             await self.check_timeout("Red" if self.red_turn else "Yellow", discord.Color.red() if self.red_turn else discord.Color.yellow())
-        else:
-            await self.kill_bot()
     
     @ commands.Cog.listener()
     async def on_game_won(self, winner, loser, color):
@@ -330,13 +330,17 @@ class Game_Functionality(commands.Cog):
         embeded_msg.add_field(name = "", value = self.display_board(self.board), inline = False)
         await self.message.edit(embed = embeded_msg)
 
-    async def kill_bot(self):
+    @ commands.Cog.listener()
+    async def on_time_out(self, player, color):
         """
-        Closes the bot connection to Discord
+        Update the embed when a player times out
         Parameters: self
         Returns: None
         """
-        await self.client.close()
+        embeded_msg = discord.Embed(title = "Connect Four game cancelled", description = f"{player} has timed out.", color = color)
+        embeded_msg.add_field(name = "", value = self.display_board(self.board), inline = False)
+        await self.message.edit(embed = embeded_msg)
+
 
     @ commands.Cog.listener()
     async def on_players_assigned(self, players, channel):
@@ -356,6 +360,7 @@ class Game_Functionality(commands.Cog):
 
         # Create initial embed, red will always go first
         embeded_msg = discord.Embed(title = "Red's Turn", description = f"{self.red_name} is Red, {self.yellow_name} is Yellow.", color = discord.Color.red())
+        embeded_msg.add_field(name = "", value = "You have 60 seconds to make your move.", inline = False)
         embeded_msg.add_field(name = "", value = self.display_board(self.board), inline = False)
         self.message = await channel.send(embed = embeded_msg)
         for move in moves:
