@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands
+import asyncio
 
 empty_space = "⚪"
 red_space = "🔴"
@@ -102,6 +103,19 @@ class Game_Functionality(commands.Cog):
         embeded_msg = discord.Embed(title = f"{next_player}'s Turn", description = f"{self.red_name} is Red, {self.yellow_name} is Yellow.", color = color)
         embeded_msg.add_field(name = "", value = self.display_board(self.board), inline = False)
         await self.message.edit(embed = embeded_msg)
+
+    async def check_timeout(self, player, color):
+        """
+        Checks if a player times out, acting as a turn timer to prevent AFK
+        Parameters: self, player color of type str, color of type discord.Color
+        Returns: None
+        """
+        try:
+            await self.client.wait_for('reaction_add', timeout = 60)
+        except asyncio.TimeoutError:
+            embeded_msg = discord.Embed(title = f"Connect Four Game Cancelled", description = f"{player} has timed out.", color = color)
+            await self.message.edit(embed = embeded_msg)
+            await self.kill_bot()
 
     def check_tie(self, board):
         """
@@ -275,32 +289,54 @@ class Game_Functionality(commands.Cog):
                     if self.red_turn:
                         winner = self.red_name
                         loser = self.yellow_name
+                        color = discord.Color.red()
                     else:
                         winner = self.yellow_name
                         loser = self.red_name
+                        color = discord.Color.yellow()
                     self.game_over = True
+                    self.client.dispatch("game_won", winner, loser, color)  # Custom dispatch event called when a player wins
 
             # Check tie
             if self.check_tie(self.board):
-                print("TIE")
                 self.game_over = True
-
-            # Check game over
-            if self.game_over:
-                self.client.dispatch("game_over", winner, loser)  # Custom dispatch event called when game ends
+                self.client.dispatch("game_tie")  # Custom dispatch event called when game ties
             
-            self.red_turn = not self.red_turn
+            self.red_turn = not self.red_turn  # Switch turns
+
+            await self.check_timeout("Red" if self.red_turn else "Yellow", discord.Color.red() if self.red_turn else discord.Color.yellow())
+        else:
+            await self.kill_bot()
     
     @ commands.Cog.listener()
-    async def on_game_over(self, winner, loser):
+    async def on_game_won(self, winner, loser, color):
         """
-        Updates the embed when the game ends
+        Updates the embed when a player wins
         Parameters: self, winner of type str, loser of type str
         Returns: None
         """
-        embeded_msg = discord.Embed(title = "Game Over!", description = f"{winner} has beaten {loser} at Connect Four!", color = discord.Color.orange())
+        embeded_msg = discord.Embed(title = "Game Over!", description = f"{winner} has beaten {loser} at Connect Four!", color = color)
         embeded_msg.add_field(name = "", value = self.display_board(self.board), inline = False)
         await self.message.edit(embed = embeded_msg)
+        
+    @ commands.Cog.listener()
+    async def on_game_tie(self):
+        """
+        Updates the embed when the game ties
+        Parameters: self
+        Returns: None
+        """
+        embeded_msg = discord.Embed(title = "Game Over!", description = f"The game is a tie, neither {self.red_name} or {self.yellow_name} won.", color = discord.Color.orange())
+        embeded_msg.add_field(name = "", value = self.display_board(self.board), inline = False)
+        await self.message.edit(embed = embeded_msg)
+
+    async def kill_bot(self):
+        """
+        Closes the bot connection to Discord
+        Parameters: self
+        Returns: None
+        """
+        await self.client.close()
 
     @ commands.Cog.listener()
     async def on_players_assigned(self, players, channel):
@@ -324,6 +360,8 @@ class Game_Functionality(commands.Cog):
         self.message = await channel.send(embed = embeded_msg)
         for move in moves:
             await self.message.add_reaction(move)
+
+        await self.check_timeout("Red", discord.Color.red())  # Check if red player times out
         
 async def setup(client):
     await client.add_cog(Game_Functionality(client))
