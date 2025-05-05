@@ -260,7 +260,7 @@ class Game_Functionality(commands.Cog):
         Parameters: self, reaction object, user who reacted
         Returns: Int representing column number
         """
-        if not self.game_over:
+        if not self.game_over and reaction.message.id == self.message.id:  # Ensure reaction is on the correct message
             # Red's move
             if self.red_turn and reaction.emoji in moves and user.id == self.red_id:  # Check if valid player reacted with valid emoji
                 column = moves.index(reaction.emoji)
@@ -279,10 +279,8 @@ class Game_Functionality(commands.Cog):
             await self.update_embed()
             
             coords = self.find_adjacent(self.board, "r" if self.red_turn else "y", row_placed, column)
-            print(coords)
             
             directions = self.find_directions(coords, row_placed, column)
-            print(directions)
 
             # Check win
             for direction in directions.keys():
@@ -340,7 +338,22 @@ class Game_Functionality(commands.Cog):
         embeded_msg = discord.Embed(title = "Connect Four game cancelled", description = f"{player} has timed out.", color = color)
         embeded_msg.add_field(name = "", value = self.display_board(self.board), inline = False)
         await self.message.edit(embed = embeded_msg)
-
+    
+    def reset_game(self):
+        """
+        Resets the game state
+        Parameters: self
+        Returns: None
+        """
+        self.board = None
+        self.players = {}
+        self.red_turn = None
+        self.red_name = None
+        self.yellow_name = None
+        self.red_id = None
+        self.yellow_id = None
+        self.game_over = False
+        self.message = None
 
     @ commands.Cog.listener()
     async def on_players_assigned(self, players, channel):

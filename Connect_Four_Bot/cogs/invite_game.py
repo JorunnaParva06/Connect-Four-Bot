@@ -40,6 +40,7 @@ class Invite_Game(commands.Cog):
                     self.client.dispatch("players_assigned", self.players, reaction.message.channel)  # Custom dispatch event called when both players assigned
                     self.deleted_invite = True
                     await self.message.delete()
+                    self.players = {}  # Reset players after game starts
 
     @commands.command()
     async def play(self, ctx):
