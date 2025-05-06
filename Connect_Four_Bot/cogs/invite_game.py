@@ -1,11 +1,15 @@
 import discord
 from discord.ext import commands
 import asyncio
+import uuid
 
 class Invite_Game(commands.Cog):
     """
     Class contains commands and listeners related to sending game invites
-    Attributes: client of type commands.Bot, dictionary which will contain player info
+    Attributes:
+        client: The bot client
+        players: Dictionary containing player info
+        deleted_invite: Boolean to check if invite is deleted
     """
     def __init__(self, client):
         """
@@ -24,7 +28,7 @@ class Invite_Game(commands.Cog):
         Parameters: self
         Returns: None
         """
-        print("Success! invite_game.py is active.")
+        print("Success! invite_game is active.")
     
     @ commands.Cog.listener()
     async def on_reaction_add(self, reaction, user):
@@ -37,7 +41,8 @@ class Invite_Game(commands.Cog):
             if reaction.emoji == "✅":  # If a different user reacts with checkmark emoji
                 if not user.bot and self.players["red"][1] != user.id:
                     self.players["yellow"] = [user.display_name, user.id]
-                    self.client.dispatch("players_assigned", self.players, reaction.message.channel)  # Custom dispatch event called when both players assigned
+                    game_id = uuid.uuid4()  # Generate a unique game ID
+                    self.client.dispatch("players_assigned", self.players, reaction.message.channel, game_id)  # Custom dispatch event called when both players assigned
                     self.deleted_invite = True
                     await self.message.delete()
                     self.players = {}  # Reset players after game starts
