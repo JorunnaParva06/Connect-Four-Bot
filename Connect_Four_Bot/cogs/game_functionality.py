@@ -7,10 +7,12 @@ red_space = "🔴"
 yellow_space = "🟡"
 moves = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣"]
 
-class Game_Functionality(commands.Cog):
+class Game_Manager(commands.Cog):
     """
-    Class contains commands and listeners related to game functionality
-    Attributes: client of type commands.Bot
+    Class contains commands and listeners for managing game instances
+    Attributes:
+        client: The bot client
+        games: Dict to store game instances
     """
     def __init__(self, client):
         """
@@ -19,6 +21,7 @@ class Game_Functionality(commands.Cog):
         Returns: None
         """
         self.client = client
+        self.games = {}
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -27,7 +30,87 @@ class Game_Functionality(commands.Cog):
         Parameters: self
         Returns: None
         """
-        print("Success! game_functionality.py is active.")
+        print("Success! game_manager is active.")
+    
+    @ commands.Cog.listener()
+    async def on_players_assigned(self, players, channel, game_id):
+        """
+        Creates a new game instance when players are assigned and stores it in a dictionary
+        Parameters: self, players of type dict, text channel, unique game_id of type UUID
+        Returns: None
+        """
+        game = Game(self.client, players, channel, game_id)
+        self.games[game_id] = game
+        await game.start_game()  # Start the game immediately
+
+    @commands.Cog.listener()
+    async def on_reaction_add(self, reaction, user):
+        """
+        Listens for reactions on game messages and calls the move method of the corresponding game instance
+        Parameters: self, reaction, user who reacted
+        Returns: None
+        """
+        for game_id, game in self.games.items():
+            if game.message.id == reaction.message.id:
+                await game.move(reaction, user)
+    
+    @commands.Cog.listener()
+    async def on_game_over(self, game_id):
+        """
+        Listens for if a game is over and removes it from dictionary
+        Parameters: self, unique game id of type UUID
+        Returns: None
+        """
+        self.games.pop(game_id)
+
+class Game:
+    """
+    Class contains functions related to game functionality
+    Attributes:
+        client: The bot client
+        board: 2D list representing the game board
+        players: Dict with keys containing player colors, values contain names and IDs
+        red_turn: Boolean indicating if it's red's turn
+        game_over: Boolean indicating if the game is over
+        channel: Text channel where the game is played
+        game_id: Unique game ID
+        message: Display to be edited later
+    """
+    def __init__(self, client, players, channel, game_id):
+        """
+        Initializes the game and assigns players
+        Parameters: client of type commands.Bot, players of type dict, text channel, unique game_id of type UUID
+        Returns: None
+        """
+        self.client = client
+        self.board = self.create_board()
+        self.players = players
+        self.red_turn = True  # Red will always go first
+        self.game_over = False
+        self.channel = channel
+        self.game_id = game_id
+        self.message = None
+
+        # Assign player names and IDs
+        self.red_name = self.players.get("red")[0]
+        self.yellow_name = self.players.get("yellow")[0]
+        self.red_id = self.players.get("red")[1]
+        self.yellow_id = self.players.get("yellow")[1]
+    
+    async def start_game(self):
+        """
+        Starts the game by sending the initial message and setting up the board
+        Parameters: self
+        Returns: None
+        """
+        # Create initial embed, red will always go first
+        embeded_msg = discord.Embed(title = "Red's Turn", description = f"{self.red_name} is Red, {self.yellow_name} is Yellow.", color = discord.Color.red())
+        embeded_msg.add_field(name = "", value = "You have 60 seconds to make your move.", inline = False)
+        embeded_msg.add_field(name = "", value = self.display_board(self.board), inline = False)
+        self.message = await self.channel.send(embed = embeded_msg)
+        for move in moves:
+            await self.message.add_reaction(move)
+        await self.check_timeout("Red", discord.Color.red())  # Check if red player times out
     
     def create_board(self):
         """
@@ -44,7 +127,7 @@ class Game_Functionality(commands.Cog):
                 a_row.append("*")  # "*" signifies an empty space
             board.append(a_row)
         return(board)
-    
+
     def display_board(self, board):
         """
         Creates a string representation of the board
@@ -64,7 +147,7 @@ class Game_Functionality(commands.Cog):
                 display += element.rjust(adjust_factor)
             display += "\n"  # Create a new line
         return display
-    
+
     def update_board(self, row_placed, board, column):
         """
         Updates the board based on player moves
@@ -75,18 +158,6 @@ class Game_Functionality(commands.Cog):
             board[row_placed][column] = "r"
         else:
             board[row_placed][column] = "y"
-
-    def check_below(self, board, column):
-        """
-        Gets the lowest row a piece can be (i.e the highest index for an empty space character)
-        Parameters: self, board of type 2D list, column index of type int
-        Returns: highest possible row index of type int
-        """
-        rows = len(board)
-        for i in range(rows):
-            if board[i][column] != '*':
-                return i - 1
-        return rows - 1
     
     async def update_embed(self):
         """
@@ -105,37 +176,24 @@ class Game_Functionality(commands.Cog):
         embeded_msg.add_field(name = "", value = self.display_board(self.board), inline = False)
         await self.message.edit(embed = embeded_msg)
 
-    async def check_timeout(self, player, color):
+    def check_below(self, board, column):
         """
-        Checks if a player times out, acting as a turn timer to prevent AFK
-        Parameters: self, player color of type str, color of type discord.Color
-        Returns: None
+        Gets the lowest row a piece can be (i.e the highest index for an empty space character)
+        Parameters: self, board of type 2D list, column index of type int
+        Returns: highest possible row index of type int
         """
-        try:
-            await self.client.wait_for('reaction_add', timeout = 60)
-        except asyncio.TimeoutError:
-            embeded_msg = discord.Embed(title = f"Connect Four Game Cancelled", description = f"{player} has timed out.", color = color)
-            await self.message.edit(embed = embeded_msg)
-            self.game_over = True
-            self.client.dispatch("time_out", player, color)  # Custom dispatch event called when a player times out
-
-    def check_tie(self, board):
-        """
-        Counts each piece on the board and determines if it is full 
-        Parameters: self, board of type 2D list
-        Returns: True or False based on if board is full
-        """
-        full_count = 0
-        num_rows = len(board)
-        num_cols = len(board[0])
-        for i in range(num_rows):
-            for j in range(num_cols):
-                if board[i][j] != '*':
-                    full_count += 1
-        return full_count == num_rows * num_cols
+        rows = len(board)
+        for i in range(rows):
+            if board[i][column] != '*':
+                return i - 1
+        return rows - 1
     
     def find_adjacent(self, board, char, row_index, col_index):
-        # Find the (row,col) coordinates of adjacent same colored pieces
+        """
+        Finds the coordinates of adjacent same colored pieces
+        Parameters: self, board of type 2D list, char of type str, row index of type int, column index of type int
+        Returns: List of tuples containing coordinates of adjacent pieces
+        """
         rows = len(board)
         cols = len(board[0])
         coords = []
@@ -175,9 +233,11 @@ class Game_Functionality(commands.Cog):
         return coords
     
     def find_directions(self, coords, row_index, col_index):
-        # determine the directions a win is possible in by subtracting each of the coords adjacent to the most recently placed by the most recently placed
-        # x: the row portion of the (row,col) coords
-        # y: the col portion of the (row,col) coords
+        """
+        Determines the directions a win is possible in
+        Parameters: self, coords of type list of tuples, row index of type int, column index of type int
+        Returns: Dictionary of directions with boolean values
+        """
         # row_index: row index of the most recently placed piece
         # col_index: col index of the most recently placed piece
 
@@ -200,7 +260,11 @@ class Game_Functionality(commands.Cog):
         return directions
     
     def check_win(self, board, color, row_index, col_index, direction):
-    # based on a direction. Count the pieces in that direction to determine if the color wins. Return true if so
+        """
+        Checks if a player has won by counting the pieces in a given direction
+        Parameters: self, board of type 2D list, color of type str, row index of type int, column index of type int, direction of type str
+        Returns: Count of linked of pieces of type int
+        """
         rows = len(board)
         cols = len(board[0])
         count = 1
@@ -253,14 +317,73 @@ class Game_Functionality(commands.Cog):
                         count+=1
         return count == 4
     
-    @ commands.Cog.listener()
-    async def on_reaction_add(self, reaction, user):
+    def check_tie(self, board):
         """
-        Changes board colors based on player input and switches turns
-        Parameters: self, reaction object, user who reacted
-        Returns: Int representing column number
+        Counts each piece on the board and determines if it is full 
+        Parameters: self, board of type 2D list
+        Returns: True or False based on if board is full
         """
-        if not self.game_over and reaction.message.id == self.message.id:  # Ensure reaction is on the correct message
+        full_count = 0
+        num_rows = len(board)
+        num_cols = len(board[0])
+        for i in range(num_rows):
+            for j in range(num_cols):
+                if board[i][j] != '*':
+                    full_count += 1
+        return full_count == num_rows * num_cols
+    
+    async def game_won(self, winner, loser, color):
+        """
+        Updates the embed when a player wins
+        Parameters: self, winner of type str, loser of type str
+        Returns: None
+        """
+        embeded_msg = discord.Embed(title = "Game Over!", description = f"{winner} has beaten {loser} at Connect Four!", color = color)
+        embeded_msg.add_field(name = "", value = self.display_board(self.board), inline = False)
+        await self.message.edit(embed = embeded_msg)
+        self.dispatch_game_over()
+    
+    async def game_tied(self):
+        """
+        Updates the embed when the game ties
+        Parameters: self
+        Returns: None
+        """
+        embeded_msg = discord.Embed(title = "Game Over!", description = f"The game is a tie, neither {self.red_name} or {self.yellow_name} won.", color = discord.Color.orange())
+        embeded_msg.add_field(name = "", value = self.display_board(self.board), inline = False)
+        await self.message.edit(embed = embeded_msg)
+        self.dispatch_game_over()
+    
+    async def check_timeout(self, player, color):
+        """
+        Checks if a player times out and updates embed it they do, acting as a turn timer to prevent AFK
+        Parameters: self, player color of type str, color of type discord.Color
+        Returns: None
+        """
+        try:
+            await self.client.wait_for('reaction_add', timeout = 60) 
+        except asyncio.TimeoutError:
+            self.game_over = True
+            embeded_msg = discord.Embed(title = "Connect Four game cancelled", description = f"{player} has timed out.", color = color)
+            embeded_msg.add_field(name = "", value = self.display_board(self.board), inline = False)
+            await self.message.edit(embed = embeded_msg)
+            self.dispatch_game_over()
+    
+    def dispatch_game_over(self):
+        """
+        Dispatches a custom event when the game is over
+        Parameters: self
+        Returns: None
+        """
+        self.client.dispatch("game_over", self.game_id)
+
+    async def move(self, reaction, user):
+        """
+        Processes a player's move, checking victory conditions, updating the board and timeouts
+        Parameters: self, reaction, user who reacted
+        Returns: None
+        """
+        if not self.game_over:
             # Red's move
             if self.red_turn and reaction.emoji in moves and user.id == self.red_id:  # Check if valid player reacted with valid emoji
                 column = moves.index(reaction.emoji)
@@ -295,91 +418,16 @@ class Game_Functionality(commands.Cog):
                         loser = self.red_name
                         color = discord.Color.yellow()
                     self.game_over = True
-                    self.client.dispatch("game_won", winner, loser, color)  # Custom dispatch event called when a player wins
+                    await self.game_won(winner, loser, color)
 
             # Check tie
             if self.check_tie(self.board):
                 self.game_over = True
-                self.client.dispatch("game_tie")  # Custom dispatch event called when game ties
+                await self.game_tied()
             
             self.red_turn = not self.red_turn  # Switch turns
 
             await self.check_timeout("Red" if self.red_turn else "Yellow", discord.Color.red() if self.red_turn else discord.Color.yellow())
-    
-    @ commands.Cog.listener()
-    async def on_game_won(self, winner, loser, color):
-        """
-        Updates the embed when a player wins
-        Parameters: self, winner of type str, loser of type str
-        Returns: None
-        """
-        embeded_msg = discord.Embed(title = "Game Over!", description = f"{winner} has beaten {loser} at Connect Four!", color = color)
-        embeded_msg.add_field(name = "", value = self.display_board(self.board), inline = False)
-        await self.message.edit(embed = embeded_msg)
-        
-    @ commands.Cog.listener()
-    async def on_game_tie(self):
-        """
-        Updates the embed when the game ties
-        Parameters: self
-        Returns: None
-        """
-        embeded_msg = discord.Embed(title = "Game Over!", description = f"The game is a tie, neither {self.red_name} or {self.yellow_name} won.", color = discord.Color.orange())
-        embeded_msg.add_field(name = "", value = self.display_board(self.board), inline = False)
-        await self.message.edit(embed = embeded_msg)
-
-    @ commands.Cog.listener()
-    async def on_time_out(self, player, color):
-        """
-        Update the embed when a player times out
-        Parameters: self
-        Returns: None
-        """
-        embeded_msg = discord.Embed(title = "Connect Four game cancelled", description = f"{player} has timed out.", color = color)
-        embeded_msg.add_field(name = "", value = self.display_board(self.board), inline = False)
-        await self.message.edit(embed = embeded_msg)
-    
-    def reset_game(self):
-        """
-        Resets the game state
-        Parameters: self
-        Returns: None
-        """
-        self.board = None
-        self.players = {}
-        self.red_turn = None
-        self.red_name = None
-        self.yellow_name = None
-        self.red_id = None
-        self.yellow_id = None
-        self.game_over = False
-        self.message = None
-
-    @ commands.Cog.listener()
-    async def on_players_assigned(self, players, channel):
-        """
-        Sets up initial game state when a red and yellow player is assigned
-        Parameters: self, Context of the command
-        Returns: None
-        """
-        self.board = self.create_board()
-        self.players = players  # store players dictionary for reaction listener
-        self.red_turn = True  # Red will always go first
-        self.red_name = self.players.get("red")[0]
-        self.yellow_name = self.players.get("yellow")[0]
-        self.red_id = self.players.get("red")[1]
-        self.yellow_id = self.players.get("yellow")[1]
-        self.game_over = False
-
-        # Create initial embed, red will always go first
-        embeded_msg = discord.Embed(title = "Red's Turn", description = f"{self.red_name} is Red, {self.yellow_name} is Yellow.", color = discord.Color.red())
-        embeded_msg.add_field(name = "", value = "You have 60 seconds to make your move.", inline = False)
-        embeded_msg.add_field(name = "", value = self.display_board(self.board), inline = False)
-        self.message = await channel.send(embed = embeded_msg)
-        for move in moves:
-            await self.message.add_reaction(move)
-
-        await self.check_timeout("Red", discord.Color.red())  # Check if red player times out
         
 async def setup(client):
-    await client.add_cog(Game_Functionality(client))
+    await client.add_cog(Game_Manager(client))
