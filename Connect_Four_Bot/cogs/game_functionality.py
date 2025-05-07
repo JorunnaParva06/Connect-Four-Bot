@@ -75,6 +75,7 @@ class Game:
         channel: Text channel where the game is played
         game_id: Unique game ID
         message: Display to be edited later
+        timeout_task: Background task for the timeout timer to prevent AFK
     """
     def __init__(self, client, players, channel, game_id):
         """
@@ -90,6 +91,7 @@ class Game:
         self.channel = channel
         self.game_id = game_id
         self.message = None
+        self.timeout_task = None
 
         # Assign player names and IDs
         self.red_name = self.players.get("red")[0]
@@ -354,20 +356,31 @@ class Game:
         await self.message.edit(embed = embeded_msg)
         self.dispatch_game_over()
     
-    async def check_timeout(self, player, color):
+    async def timeout_timer(self, player, color):
         """
-        Checks if a player times out and updates embed it they do, acting as a turn timer to prevent AFK
+        Counts down time for a move and cancels game if timeout occurs, does nothing otherwise
         Parameters: self, player color of type str, color of type discord.Color
         Returns: None
         """
         try:
-            await self.client.wait_for('reaction_add', timeout = 60) 
-        except asyncio.TimeoutError:
+            await asyncio.sleep(60)
             self.game_over = True
             embeded_msg = discord.Embed(title = "Connect Four game cancelled", description = f"{player} has timed out.", color = color)
             embeded_msg.add_field(name = "", value = self.display_board(self.board), inline = False)
             await self.message.edit(embed = embeded_msg)
             self.dispatch_game_over()
+        except asyncio.CancelledError:
+            pass  # If task is cancelled, do nothing
+    
+    def check_timeout(self, player, color):
+        """
+        Checks if a player times out by creating coroutines to act as a turn timer
+        Parameters: self, player color of type str, color of type discord.Color
+        Returns: None
+        """
+        if self.timeout_task:
+            self.timeout_task.cancel()  # Cancel previous task
+        self.timeout_task = asyncio.create_task(self.timeout_timer(player, color))  # Create new task if there is no previous task    
     
     def dispatch_game_over(self):
         """
@@ -384,6 +397,7 @@ class Game:
         Returns: None
         """
         if not self.game_over:
+
             # Red's move
             if self.red_turn and reaction.emoji in moves and user.id == self.red_id:  # Check if valid player reacted with valid emoji
                 column = moves.index(reaction.emoji)
@@ -427,7 +441,7 @@ class Game:
             
             self.red_turn = not self.red_turn  # Switch turns
 
-            await self.check_timeout("Red" if self.red_turn else "Yellow", discord.Color.red() if self.red_turn else discord.Color.yellow())
+            self.check_timeout("Red" if self.red_turn else "Yellow", discord.Color.red() if self.red_turn else discord.Color.yellow())
         
 async def setup(client):
     await client.add_cog(Game_Manager(client))
